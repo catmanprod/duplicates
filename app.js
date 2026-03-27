@@ -31,6 +31,9 @@ const UNIVERSAL_PROFILE = {
     { key: "heightCm", regex: /(?:^|[^\d])(\d{1,3})\s*см(?=\s|$|[),.;])/gi },
     { key: "weightKg", regex: /(?:^|[^\d])(\d{1,2}(?:\.\d{1,2})?)\s*kg(?=\s|$|[),.;])/gi },
     { key: "weightG", regex: /(?:^|[^\d])(\d{2,5})\s*g(?=\s|$|[),.;])/gi }
+    { key: "heightCm", regex: /(?:^|[^\d])(\d{1,3})\s*см\b/gi },
+    { key: "weightKg", regex: /(?:^|[^\d])(\d{1,2}(?:\.\d{1,2})?)\s*kg\b/gi },
+    { key: "weightG", regex: /(?:^|[^\d])(\d{2,5})\s*g\b/gi }
   ]
 };
 
@@ -114,6 +117,9 @@ function extractNumericValues(regex, input) {
   const out = new Set();
   let m;
   while ((m = re.exec(input)) !== null) out.add(m[1]);
+  const out = new Set();
+  let m;
+  while ((m = regex.exec(input)) !== null) out.add(m[1]);
   return out;
 }
 
@@ -155,7 +161,11 @@ function parseTitleAttributes(title) {
     storageType: STORAGE_TYPES.find((x) => lower.includes(x)) || "",
     capacitiesGb: extractNumericValues(/(?:^|[^\d])(\d{1,4})\s*gb\b/gi, lower),
     capacitiesTb: extractNumericValues(/(?:^|[^\d])(\d{1,3})\s*tb\b/gi, lower),
+<<<<<<< codex/add-code-to-github-for-website-cb8608
     weightsGram: extractNumericValues(/(?:^|[^\d])(\d{2,5})\s*(?:g|гр|gram|grams)(?=\s|$|[),.;])/gi, lower),
+=======
+    weightsGram: extractNumericValues(/(?:^|[^\d])(\d{2,5})\s*(?:g|гр|gram|grams)\b/gi, lower),
+>>>>>>> main
     dimensionsCm: extractDimensionPairs(lower),
     sizesInch: extractNumericValues(/(?:^|[^\d])(\d{1,2}(?:\.\d{1,2})?)\s*(?:\"|inch|in|дюйм)/gi, lower),
     multipliers: extractNumericValues(/\b(\d{1,2})\s*x\s*\d{1,4}\s*gb\b/gi, lower),
@@ -301,6 +311,9 @@ function buildGroups(rows, cfg) {
       return;
     }
 
+  const edges = new Map();
+  const addEdge = (u1, u2, score, reason) => {
+    if (u1 === u2) return;
     const [a, b] = u1 < u2 ? [u1, u2] : [u2, u1];
     const key = `${a}||${b}`;
     if (!edges.has(key) || edges.get(key).score < score) edges.set(key, { a, b, score, reason });
@@ -368,6 +381,7 @@ function buildGroups(rows, cfg) {
   const dsu = new DSU();
   for (const { a, b } of edges.values()) dsu.union(a, b);
 
+  const byUuid = new Map(data.map((r) => [r._uuid, r]));
   const comps = new Map();
   for (const row of data) {
     const root = dsu.find(row._uuid);
@@ -496,6 +510,13 @@ function onRun() {
     } finally {
       runBtn.disabled = false;
     }
+  setStatus("Обробка...");
+  setTimeout(() => {
+    state.resultRows = buildGroups(state.inputRows, cfg);
+    renderTable(state.resultRows);
+    exportBtn.disabled = !state.resultRows.length;
+    const groups = new Set(state.resultRows.map((r) => r.group_id).filter(Boolean));
+    setStatus(`Готово. Знайдено груп: ${groups.size}`);
   }, 0);
 }
 
