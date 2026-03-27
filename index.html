@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Product Dedupe — Web</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  </head>
+  <body>
+    <main class="container">
+      <h1>Product Dedupe (Web)</h1>
+      <p class="subtitle">Пошук дублікатів за vendor/barcode + fuzzy title (без бекенду).</p>
+
+      <section class="card controls">
+        <label class="file-picker">
+          <span>Файл CSV/XLSX</span>
+          <input id="fileInput" type="file" accept=".csv,.xlsx,.xls" />
+        </label>
+
+        <label>
+          Поріг fuzzy (%):
+          <input id="threshold" type="number" min="50" max="100" step="1" value="90" />
+        </label>
+
+        <label>
+          Макс. розмір fuzzy-блоку:
+          <input id="fuzzyBlockMax" type="number" min="50" max="5000" step="50" value="400" />
+        </label>
+
+        <label class="checkbox-row">
+          <input id="includeFuzzy" type="checkbox" checked />
+          Додавати fuzzy-пошук по назві
+        </label>
+
+        <button id="runBtn">Знайти дублікати</button>
+        <button id="exportBtn" disabled>Експорт CSV</button>
+      </section>
+
+      <section class="card">
+        <p id="status">Готово. Завантаж файл.</p>
+        <div class="table-wrap">
+          <table id="resultTable"></table>
+        </div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
