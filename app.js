@@ -1,4 +1,39 @@
 const CORE_COLS = ["[uuid]", "SKU", "Штрихкод", "Бренд", "Variation_name", "Вендор код", "Назва"];
+const COLOR_WORDS = [
+  "black", "white", "silver", "gray", "grey", "blue", "red", "green", "yellow", "purple", "pink",
+  "gold", "orange", "beige", "brown", "bronze", "graphite", "space gray", "midnight", "starlight",
+  "чорний", "білий", "сріблястий", "сірий", "синій", "червоний", "зелений", "жовтий", "фіолетовий",
+  "рожевий", "золотий", "помаранчевий", "бежевий", "коричневий", "графіт", "чорна", "біла", "срібна"
+];
+const MEMORY_TYPES = ["ddr3", "ddr4", "ddr5", "lpddr4", "lpddr5", "gddr6", "gddr6x"];
+const STORAGE_TYPES = ["ssd", "hdd", "nvme", "sata", "pcie", "ufs", "emmc", "microsd", "sdxc"];
+const UNIVERSAL_PROFILE = {
+  mustMatchText: [
+    "iphone", "samsung", "xiaomi", "pixel", "redmi", "realme", "oneplus", "motorola",
+    "матрац", "матрас", "mattress", "ортопедичний", "пружинний", "безпружинний",
+    "cat", "dog", "кіт", "собака", "puppy", "kitten", "стерилізован"
+  ],
+  conflictText: [
+    ["dual sim", "single sim"],
+    ["e-sim", "nano sim"],
+    ["new", "refurbished"],
+    ["пружинний", "безпружинний"],
+    ["foam", "spring"],
+    ["cat", "dog"],
+    ["кіт", "собак"],
+    ["puppy", "adult"],
+    ["kitten", "adult"]
+  ],
+  extraPatterns: [
+    { key: "cameraMp", regex: /(?:^|[^\d])(\d{2,3})\s*mp\b/gi },
+    { key: "batteryMah", regex: /(?:^|[^\d])(\d{3,5})\s*mah\b/gi },
+    { key: "mattressTripleSize", regex: /\b(\d{2,3}\s*(?:x|×)\s*\d{2,3}\s*(?:x|×)\s*\d{1,3})\b/gi },
+    { key: "heightCm", regex: /(?:^|[^\d])(\d{1,3})\s*см\b/gi },
+    { key: "weightKg", regex: /(?:^|[^\d])(\d{1,2}(?:\.\d{1,2})?)\s*kg\b/gi },
+    { key: "weightG", regex: /(?:^|[^\d])(\d{2,5})\s*g\b/gi }
+  ]
+};
+=======
 
 const state = {
   inputRows: [],
@@ -72,6 +107,100 @@ function tokenSetRatio(a, b) {
   return (2 * intersect) / (aTokens.size + bTokens.size);
 }
 
+function extractNumericValues(regex, input) {
+  const out = new Set();
+  let m;
+  while ((m = regex.exec(input)) !== null) out.add(m[1]);
+  return out;
+}
+
+function detectColors(raw) {
+  const s = String(raw || "").toLowerCase();
+  const found = new Set();
+  for (const c of COLOR_WORDS) {
+    if (s.includes(c)) found.add(c);
+  }
+  return found;
+}
+
+function parseTitleAttributes(title) {
+  const normalized = normText(title);
+  const raw = String(title || "");
+  const lower = raw.toLowerCase();
+  const profile = UNIVERSAL_PROFILE;
+
+  const attrs = {
+    mustText: new Set(),
+    conflictText: new Set(),
+    extra: {},
+    colors: detectColors(raw),
+    memoryType: MEMORY_TYPES.find((x) => lower.includes(x)) || "",
+    storageType: STORAGE_TYPES.find((x) => lower.includes(x)) || "",
+    capacitiesGb: extractNumericValues(/(?:^|[^\d])(\d{1,4})\s*gb\b/gi, lower),
+    capacitiesTb: extractNumericValues(/(?:^|[^\d])(\d{1,3})\s*tb\b/gi, lower),
+    weightsGram: extractNumericValues(/(?:^|[^\d])(\d{2,5})\s*(?:g|гр|gram|grams)\b/gi, lower),
+    sizesInch: extractNumericValues(/(?:^|[^\d])(\d{1,2}(?:\.\d{1,2})?)\s*(?:\"|inch|in|дюйм)/gi, lower),
+    multipliers: extractNumericValues(/\b(\d{1,2})\s*x\s*\d{1,4}\s*gb\b/gi, lower),
+    normTitle: normalized
+  };
+
+  for (const token of profile.mustMatchText) {
+    if (lower.includes(token)) attrs.mustText.add(token);
+  }
+  for (const [left, right] of profile.conflictText) {
+    if (lower.includes(left)) attrs.conflictText.add(left);
+    if (lower.includes(right)) attrs.conflictText.add(right);
+  }
+  for (const p of profile.extraPatterns) {
+    attrs.extra[p.key] = extractNumericValues(p.regex, lower);
+  }
+
+  return attrs;
+}
+
+function setsConflict(left, right) {
+  if (!left.size || !right.size) return false;
+  for (const x of left) if (right.has(x)) return false;
+  return true;
+}
+
+function hasHardConflict(a, b) {
+  if (a.memoryType && b.memoryType && a.memoryType !== b.memoryType) return true;
+  if (a.storageType && b.storageType && a.storageType !== b.storageType) return true;
+  if (setsConflict(a.capacitiesGb, b.capacitiesGb)) return true;
+  if (setsConflict(a.capacitiesTb, b.capacitiesTb)) return true;
+  if (setsConflict(a.weightsGram, b.weightsGram)) return true;
+  if (setsConflict(a.sizesInch, b.sizesInch)) return true;
+  if (setsConflict(a.multipliers, b.multipliers)) return true;
+
+  // Colors are soft-conflict: block only when both titles are detailed and fully disjoint.
+  if (a.colors.size && b.colors.size) {
+    const titleRich = a.normTitle.length >= 12 && b.normTitle.length >= 12;
+    if (titleRich && setsConflict(a.colors, b.colors)) return true;
+  }
+
+  if (a.mustText.size && b.mustText.size && setsConflict(a.mustText, b.mustText)) return true;
+  for (const key of Object.keys(a.extra || {})) {
+    if (setsConflict(a.extra[key], (b.extra || {})[key] || new Set())) return true;
+  }
+  const pairConflicts = UNIVERSAL_PROFILE.conflictText || [];
+  for (const [left, right] of pairConflicts) {
+    const aHasLeft = a.conflictText.has(left);
+    const aHasRight = a.conflictText.has(right);
+    const bHasLeft = b.conflictText.has(left);
+    const bHasRight = b.conflictText.has(right);
+    if ((aHasLeft && bHasRight) || (aHasRight && bHasLeft)) return true;
+  }
+
+  return false;
+}
+
+function titlesLookCompatible(a, b) {
+  if (!a.normTitle || !b.normTitle) return true;
+  const score = tokenSetRatio(a.normTitle, b.normTitle);
+  return score >= 0.42;
+}
+
 function ensureColumns(rows) {
   const alias = {
     "Название": "Назва",
@@ -132,6 +261,8 @@ function buildGroups(rows, cfg) {
       _uuid: String(r["[uuid]"]),
       _brand: normText(r["Бренд"]),
       _title: normText(r["Назва"]),
+      _attrs: parseTitleAttributes(r["Назва"]),
+=======
       _vendor: normVendor(r["Вендор код"]),
       _barcode: normBarcode(r["Штрихкод"]),
       _titleVendorCodes: titleVendorCodes,
@@ -139,6 +270,20 @@ function buildGroups(rows, cfg) {
     };
   });
 
+  const byUuid = new Map(data.map((r) => [r._uuid, r]));
+
+  const edges = new Map();
+  const addEdge = (u1, u2, score, reason) => {
+    if (u1 === u2) return;
+    const left = byUuid.get(u1);
+    const right = byUuid.get(u2);
+    if (!left || !right) return;
+    if (hasHardConflict(left._attrs, right._attrs)) return;
+    if ((reason === "exact_vendor_code" || reason === "exact_barcode") && !titlesLookCompatible(left._attrs, right._attrs)) {
+      return;
+    }
+
+=======
   const edges = new Map();
   const addEdge = (u1, u2, score, reason) => {
     if (u1 === u2) return;
@@ -209,6 +354,7 @@ function buildGroups(rows, cfg) {
   const dsu = new DSU();
   for (const { a, b } of edges.values()) dsu.union(a, b);
 
+=======
   const byUuid = new Map(data.map((r) => [r._uuid, r]));
   const comps = new Map();
   for (const row of data) {
