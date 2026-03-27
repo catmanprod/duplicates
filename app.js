@@ -28,6 +28,9 @@ const UNIVERSAL_PROFILE = {
     { key: "cameraMp", regex: /(?:^|[^\d])(\d{2,3})\s*mp\b/gi },
     { key: "batteryMah", regex: /(?:^|[^\d])(\d{3,5})\s*mah\b/gi },
     { key: "mattressTripleSize", regex: /\b(\d{2,3}\s*(?:x|×)\s*\d{2,3}\s*(?:x|×)\s*\d{1,3})\b/gi },
+    { key: "heightCm", regex: /(?:^|[^\d])(\d{1,3})\s*см(?=\s|$|[),.;])/gi },
+    { key: "weightKg", regex: /(?:^|[^\d])(\d{1,2}(?:\.\d{1,2})?)\s*kg(?=\s|$|[),.;])/gi },
+    { key: "weightG", regex: /(?:^|[^\d])(\d{2,5})\s*g(?=\s|$|[),.;])/gi }
     { key: "heightCm", regex: /(?:^|[^\d])(\d{1,3})\s*см\b/gi },
     { key: "weightKg", regex: /(?:^|[^\d])(\d{1,2}(?:\.\d{1,2})?)\s*kg\b/gi },
     { key: "weightG", regex: /(?:^|[^\d])(\d{2,5})\s*g\b/gi }
@@ -48,6 +51,9 @@ const tableEl = document.getElementById("resultTable");
 fileInput.addEventListener("change", onLoadFile);
 runBtn.addEventListener("click", onRun);
 exportBtn.addEventListener("click", onExport);
+window.addEventListener("error", (event) => {
+  setStatus(`Помилка JS: ${event.message}`);
+});
 
 function setStatus(msg) {
   statusEl.textContent = msg;
@@ -107,6 +113,10 @@ function tokenSetRatio(a, b) {
 }
 
 function extractNumericValues(regex, input) {
+  const re = new RegExp(regex.source, regex.flags);
+  const out = new Set();
+  let m;
+  while ((m = re.exec(input)) !== null) out.add(m[1]);
   const out = new Set();
   let m;
   while ((m = regex.exec(input)) !== null) out.add(m[1]);
@@ -151,7 +161,11 @@ function parseTitleAttributes(title) {
     storageType: STORAGE_TYPES.find((x) => lower.includes(x)) || "",
     capacitiesGb: extractNumericValues(/(?:^|[^\d])(\d{1,4})\s*gb\b/gi, lower),
     capacitiesTb: extractNumericValues(/(?:^|[^\d])(\d{1,3})\s*tb\b/gi, lower),
+<<<<<<< codex/add-code-to-github-for-website-cb8608
+    weightsGram: extractNumericValues(/(?:^|[^\d])(\d{2,5})\s*(?:g|гр|gram|grams)(?=\s|$|[),.;])/gi, lower),
+=======
     weightsGram: extractNumericValues(/(?:^|[^\d])(\d{2,5})\s*(?:g|гр|gram|grams)\b/gi, lower),
+>>>>>>> main
     dimensionsCm: extractDimensionPairs(lower),
     sizesInch: extractNumericValues(/(?:^|[^\d])(\d{1,2}(?:\.\d{1,2})?)\s*(?:\"|inch|in|дюйм)/gi, lower),
     multipliers: extractNumericValues(/\b(\d{1,2})\s*x\s*\d{1,4}\s*gb\b/gi, lower),
@@ -480,6 +494,22 @@ function onRun() {
     fuzzyBlockMax: Number(document.getElementById("fuzzyBlockMax").value)
   };
 
+  runBtn.disabled = true;
+  setStatus("Обробка...");
+  setTimeout(() => {
+    try {
+      state.resultRows = buildGroups(state.inputRows, cfg);
+      renderTable(state.resultRows);
+      exportBtn.disabled = !state.resultRows.length;
+      const groups = new Set(state.resultRows.map((r) => r.group_id).filter(Boolean));
+      setStatus(`Готово. Знайдено груп: ${groups.size}`);
+    } catch (error) {
+      console.error(error);
+      setStatus(`Помилка обробки: ${error?.message || error}`);
+      exportBtn.disabled = true;
+    } finally {
+      runBtn.disabled = false;
+    }
   setStatus("Обробка...");
   setTimeout(() => {
     state.resultRows = buildGroups(state.inputRows, cfg);
