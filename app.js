@@ -68,6 +68,8 @@ function normText(value) {
     "2023", "2024", "2025", "2026"
   ];
   for (const w of noise) s = s.replaceAll(w, " ");
+  // Keep broad Latin+Cyrillic letters and digits for better browser compatibility.
+  s = s.replace(/[^a-zа-яіїєґ0-9\s_]/gi, " ").replace(/\s+/g, " ").trim();
   s = s.replace(/[^\p{L}\p{N}\s_]/gu, " ").replace(/\s+/g, " ").trim();
   return s;
 }
@@ -161,11 +163,9 @@ function parseTitleAttributes(title) {
     storageType: STORAGE_TYPES.find((x) => lower.includes(x)) || "",
     capacitiesGb: extractNumericValues(/(?:^|[^\d])(\d{1,4})\s*gb\b/gi, lower),
     capacitiesTb: extractNumericValues(/(?:^|[^\d])(\d{1,3})\s*tb\b/gi, lower),
-<<<<<<< codex/add-code-to-github-for-website-cb8608
     weightsGram: extractNumericValues(/(?:^|[^\d])(\d{2,5})\s*(?:g|гр|gram|grams)(?=\s|$|[),.;])/gi, lower),
-=======
+    weightsGram: extractNumericValues(/(?:^|[^\d])(\d{2,5})\s*(?:g|гр|gram|grams)(?=\s|$|[),.;])/gi, lower),
     weightsGram: extractNumericValues(/(?:^|[^\d])(\d{2,5})\s*(?:g|гр|gram|grams)\b/gi, lower),
->>>>>>> main
     dimensionsCm: extractDimensionPairs(lower),
     sizesInch: extractNumericValues(/(?:^|[^\d])(\d{1,2}(?:\.\d{1,2})?)\s*(?:\"|inch|in|дюйм)/gi, lower),
     multipliers: extractNumericValues(/\b(\d{1,2})\s*x\s*\d{1,4}\s*gb\b/gi, lower),
@@ -447,6 +447,7 @@ function buildGroups(rows, cfg) {
 }
 
 async function onLoadFile(event) {
+  const file = event && event.target && event.target.files ? event.target.files[0] : null;
   const file = event.target.files?.[0];
   if (!file) return;
 
@@ -505,6 +506,8 @@ function onRun() {
       setStatus(`Готово. Знайдено груп: ${groups.size}`);
     } catch (error) {
       console.error(error);
+      const errText = error && error.message ? error.message : String(error);
+      setStatus(`Помилка обробки: ${errText}`);
       setStatus(`Помилка обробки: ${error?.message || error}`);
       exportBtn.disabled = true;
     } finally {
@@ -540,6 +543,7 @@ function renderTable(rows) {
     if (!row.group_id) tr.classList.add("sep");
     for (const c of cols) {
       const td = document.createElement("td");
+      td.textContent = row[c] == null ? "" : row[c];
       td.textContent = row[c] ?? "";
       tr.appendChild(td);
     }
