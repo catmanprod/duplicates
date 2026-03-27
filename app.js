@@ -297,6 +297,9 @@ function buildGroups(rows, cfg) {
       return;
     }
 
+  const edges = new Map();
+  const addEdge = (u1, u2, score, reason) => {
+    if (u1 === u2) return;
     const [a, b] = u1 < u2 ? [u1, u2] : [u2, u1];
     const key = `${a}||${b}`;
     if (!edges.has(key) || edges.get(key).score < score) edges.set(key, { a, b, score, reason });
@@ -364,6 +367,7 @@ function buildGroups(rows, cfg) {
   const dsu = new DSU();
   for (const { a, b } of edges.values()) dsu.union(a, b);
 
+  const byUuid = new Map(data.map((r) => [r._uuid, r]));
   const comps = new Map();
   for (const row of data) {
     const root = dsu.find(row._uuid);
