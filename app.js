@@ -169,7 +169,20 @@ function parseTitleAttributes(title) {
     conflictText: new Set(),
     extra: {},
     colors: detectColors(raw),
-    bracketVendorCodes: extractBracketVendorCodes(raw),
+    bracketVendorCodes: (() => {
+      const out = new Set();
+      const matches = raw.match(/\(([^)]+)\)/g) || [];
+
+      for (const m of matches) {
+      const inner = m.slice(1, -1).trim();
+      const nv = normVendor(inner);
+      if (nv.length >= 5 && /[A-Z]/.test(nv) && /\d/.test(nv)) {
+        out.add(nv);
+      }
+    }
+
+    return out;
+  })(),
     memoryType: MEMORY_TYPES.find((x) => lower.includes(x)) || "",
     storageType: STORAGE_TYPES.find((x) => lower.includes(x)) || "",
     capacitiesGb: extractNumericValues(/(?:^|[^\d])(\d{1,4})\s*gb\b/gi, lower),
@@ -428,7 +441,7 @@ function buildGroups(rows, cfg) {
           if (!a._title || !b._title) continue;
           const titleScore = tokenSetRatio(a._title, b._title);
           if (titleScore < cfg.threshold) continue;
-          if (titleScore < 0.95 && hasHardConflict(a._attrs, b._attrs)) continue;
+          if (hasHardConflict(a._attrs, b._attrs)) continue;
           if (titleScore < cfg.threshold) continue;
           const bonus = a._brand && a._brand === b._brand ? 0.03 : 0;
           const score = Math.min(1, titleScore + bonus);
