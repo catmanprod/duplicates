@@ -89,11 +89,18 @@ function extractCodesFromTitle(title) {
       joined.push(comb);
     }
   }
-  
+
+  const vendorCodes = [];
+  for (const c of [...raw, ...joined]) {
+    const nv = normVendor(c);
+    if (nv.length >= 5 && /[A-Z]/.test(nv) && /\d/.test(nv)) vendorCodes.push(nv);
+  }
+  return [[...new Set(vendorCodes)], barcodes];
+}
+
 function extractBracketVendorCodes(title) {
   const s = String(title || "");
   const out = new Set();
-
   const matches = s.match(/\(([^)]+)\)/g) || [];
   for (const m of matches) {
     const inner = m.slice(1, -1).trim();
@@ -102,16 +109,7 @@ function extractBracketVendorCodes(title) {
       out.add(nv);
     }
   }
-
   return out;
-}
-
-  const vendorCodes = [];
-  for (const c of [...raw, ...joined]) {
-    const nv = normVendor(c);
-    if (nv.length >= 5 && /[A-Z]/.test(nv) && /\d/.test(nv)) vendorCodes.push(nv);
-  }
-  return [[...new Set(vendorCodes)], barcodes];
 }
 
 function tokenSetRatio(a, b) {
@@ -289,7 +287,7 @@ class DSU {
 function buildGroups(rows, cfg) {
   const data = ensureColumns(rows).map((r) => {
     const matchTitle = String(r["Variation_name"] || "").trim();
-    const [titleVendorCodes, titleBarcodes] = extractCodesFromTitle(r["matchTitle"]);
+    const [titleVendorCodes, titleBarcodes] = extractCodesFromTitle(matchTitle);
     return {
       ...r,
       _uuid: String(r["[uuid]"]),
