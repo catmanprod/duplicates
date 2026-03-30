@@ -60,9 +60,7 @@ function normText(value) {
   if (value == null) return "";
   let s = String(value).trim().toLowerCase().replace(/\s+/g, " ");
   const noise = [
-    "official", "гарантія", "новинка", "new", "оригінал",
-    "global", "europe", "європа", "ua", "ukraine",
-    "2023", "2024", "2025", "2026"
+    "official", "гарантія", "новинка", "new"
   ];
   for (const w of noise) s = s.replaceAll(w, " ");
   s = s.replace(/[^\p{L}\p{N}\s_]/gu, " ").replace(/\s+/g, " ").trim();
@@ -231,7 +229,7 @@ function ensureColumns(rows) {
       "Бренд": getByHeader(r, ["Бренд", "Brand"]),
       "Variation_name": getByHeader(r, ["Variation_name", "Variation", "variation_name"]),
       "Вендор код": getByHeader(r, ["Вендор код", "Vendor code", "Vendor"]),
-      "Назва": getByHeader(r, ["Назва", "Название", "Name", "Product name", "Title", "Variation_name", "Variation"])
+      "Назва": getByHeader(r, ["Назва", "Название", "Name", "Product name", "Title"])
     };
 
     for (const c of CORE_COLS) {
@@ -272,13 +270,14 @@ class DSU {
 
 function buildGroups(rows, cfg) {
   const data = ensureColumns(rows).map((r) => {
-    const [titleVendorCodes, titleBarcodes] = extractCodesFromTitle(r["Назва"]);
+    const matchTitle = String(r["Variation_name"] || "").trim();
+    const [titleVendorCodes, titleBarcodes] = extractCodesFromTitle(r["matchTitle"]);
     return {
       ...r,
       _uuid: String(r["[uuid]"]),
       _brand: normText(r["Бренд"]),
-      _title: normText(r["Назва"]),
-      _attrs: parseTitleAttributes(r["Назва"]),
+      _title: normText(matchTitle),
+      _attrs: parseTitleAttributes(matchTitle),
       _vendor: normVendor(r["Вендор код"]),
       _barcode: normBarcode(r["Штрихкод"]),
       _titleVendorCodes: titleVendorCodes,
@@ -300,8 +299,7 @@ function buildGroups(rows, cfg) {
     if (!left || !right) return;
     // For near-identical titles (score >= 0.95) skip hard-conflict check —
     // noisy numeric regexes can produce false conflicts on identical product names.
-    const titleSimilarity = tokenSetRatio(left._title, right._title);
-    if (titleSimilarity < 0.95 && hasHardConflict(left._attrs, right._attrs)) return;
+    if (hasHardConflict(left._attrs, right._attrs)) return;
     if ((reason === "exact_vendor_code" || reason === "exact_barcode") && !titlesLookCompatible(left._attrs, right._attrs)) {
       return;
     }
