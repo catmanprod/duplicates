@@ -28,9 +28,6 @@ const UNIVERSAL_PROFILE = {
     { key: "cameraMp", regex: /(?:^|[^\d])(\d{2,3})\s*mp\b/gi },
     { key: "batteryMah", regex: /(?:^|[^\d])(\d{3,5})\s*mah\b/gi },
     { key: "mattressTripleSize", regex: /\b(\d{2,3}\s*(?:x|×)\s*\d{2,3}\s*(?:x|×)\s*\d{1,3})\b/gi },
-    { key: "heightCm", regex: /(?:^|[^\d])(\d{1,3})\s*см(?=\s|$|[),.;])/gi },
-    { key: "weightKg", regex: /(?:^|[^\d])(\d{1,2}(?:\.\d{1,2})?)\s*kg(?=\s|$|[),.;])/gi },
-    { key: "weightG", regex: /(?:^|[^\d])(\d{2,5})\s*g(?=\s|$|[),.;])/gi }
     { key: "heightCm", regex: /(?:^|[^\d])(\d{1,3})\s*см\b/gi },
     { key: "weightKg", regex: /(?:^|[^\d])(\d{1,2}(?:\.\d{1,2})?)\s*kg\b/gi },
     { key: "weightG", regex: /(?:^|[^\d])(\d{2,5})\s*g\b/gi }
@@ -68,8 +65,6 @@ function normText(value) {
     "2023", "2024", "2025", "2026"
   ];
   for (const w of noise) s = s.replaceAll(w, " ");
-  // Keep broad Latin+Cyrillic letters and digits for better browser compatibility.
-  s = s.replace(/[^a-zа-яіїєґ0-9\s_]/gi, " ").replace(/\s+/g, " ").trim();
   s = s.replace(/[^\p{L}\p{N}\s_]/gu, " ").replace(/\s+/g, " ").trim();
   return s;
 }
@@ -119,9 +114,6 @@ function extractNumericValues(regex, input) {
   const out = new Set();
   let m;
   while ((m = re.exec(input)) !== null) out.add(m[1]);
-  const out = new Set();
-  let m;
-  while ((m = regex.exec(input)) !== null) out.add(m[1]);
   return out;
 }
 
@@ -163,8 +155,6 @@ function parseTitleAttributes(title) {
     storageType: STORAGE_TYPES.find((x) => lower.includes(x)) || "",
     capacitiesGb: extractNumericValues(/(?:^|[^\d])(\d{1,4})\s*gb\b/gi, lower),
     capacitiesTb: extractNumericValues(/(?:^|[^\d])(\d{1,3})\s*tb\b/gi, lower),
-    weightsGram: extractNumericValues(/(?:^|[^\d])(\d{2,5})\s*(?:g|гр|gram|grams)(?=\s|$|[),.;])/gi, lower),
-    weightsGram: extractNumericValues(/(?:^|[^\d])(\d{2,5})\s*(?:g|гр|gram|grams)(?=\s|$|[),.;])/gi, lower),
     weightsGram: extractNumericValues(/(?:^|[^\d])(\d{2,5})\s*(?:g|гр|gram|grams)\b/gi, lower),
     dimensionsCm: extractDimensionPairs(lower),
     sizesInch: extractNumericValues(/(?:^|[^\d])(\d{1,2}(?:\.\d{1,2})?)\s*(?:\"|inch|in|дюйм)/gi, lower),
@@ -310,10 +300,6 @@ function buildGroups(rows, cfg) {
     if ((reason === "exact_vendor_code" || reason === "exact_barcode") && !titlesLookCompatible(left._attrs, right._attrs)) {
       return;
     }
-
-  const edges = new Map();
-  const addEdge = (u1, u2, score, reason) => {
-    if (u1 === u2) return;
     const [a, b] = u1 < u2 ? [u1, u2] : [u2, u1];
     const key = `${a}||${b}`;
     if (!edges.has(key) || edges.get(key).score < score) edges.set(key, { a, b, score, reason });
@@ -381,7 +367,6 @@ function buildGroups(rows, cfg) {
   const dsu = new DSU();
   for (const { a, b } of edges.values()) dsu.union(a, b);
 
-  const byUuid = new Map(data.map((r) => [r._uuid, r]));
   const comps = new Map();
   for (const row of data) {
     const root = dsu.find(row._uuid);
@@ -447,7 +432,6 @@ function buildGroups(rows, cfg) {
 }
 
 async function onLoadFile(event) {
-  const file = event && event.target && event.target.files ? event.target.files[0] : null;
   const file = event.target.files?.[0];
   if (!file) return;
 
@@ -506,20 +490,11 @@ function onRun() {
       setStatus(`Готово. Знайдено груп: ${groups.size}`);
     } catch (error) {
       console.error(error);
-      const errText = error && error.message ? error.message : String(error);
-      setStatus(`Помилка обробки: ${errText}`);
       setStatus(`Помилка обробки: ${error?.message || error}`);
       exportBtn.disabled = true;
     } finally {
       runBtn.disabled = false;
     }
-  setStatus("Обробка...");
-  setTimeout(() => {
-    state.resultRows = buildGroups(state.inputRows, cfg);
-    renderTable(state.resultRows);
-    exportBtn.disabled = !state.resultRows.length;
-    const groups = new Set(state.resultRows.map((r) => r.group_id).filter(Boolean));
-    setStatus(`Готово. Знайдено груп: ${groups.size}`);
   }, 0);
 }
 
@@ -543,7 +518,6 @@ function renderTable(rows) {
     if (!row.group_id) tr.classList.add("sep");
     for (const c of cols) {
       const td = document.createElement("td");
-      td.textContent = row[c] == null ? "" : row[c];
       td.textContent = row[c] ?? "";
       tr.appendChild(td);
     }
