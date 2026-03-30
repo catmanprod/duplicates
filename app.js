@@ -89,6 +89,22 @@ function extractCodesFromTitle(title) {
       joined.push(comb);
     }
   }
+  
+function extractBracketVendorCodes(title) {
+  const s = String(title || "");
+  const out = new Set();
+
+  const matches = s.match(/\(([^)]+)\)/g) || [];
+  for (const m of matches) {
+    const inner = m.slice(1, -1).trim();
+    const nv = normVendor(inner);
+    if (nv.length >= 5 && /[A-Z]/.test(nv) && /\d/.test(nv)) {
+      out.add(nv);
+    }
+  }
+
+  return out;
+}
 
   const vendorCodes = [];
   for (const c of [...raw, ...joined]) {
@@ -149,6 +165,7 @@ function parseTitleAttributes(title) {
     conflictText: new Set(),
     extra: {},
     colors: detectColors(raw),
+    bracketVendorCodes: extractBracketVendorCodes(raw),
     memoryType: MEMORY_TYPES.find((x) => lower.includes(x)) || "",
     storageType: STORAGE_TYPES.find((x) => lower.includes(x)) || "",
     capacitiesGb: extractNumericValues(/(?:^|[^\d])(\d{1,4})\s*gb\b/gi, lower),
@@ -181,6 +198,7 @@ function setsConflict(left, right) {
 }
 
 function hasHardConflict(a, b) {
+  if (setsConflict(a.bracketVendorCodes || new Set(), b.bracketVendorCodes || new Set())) return true;
   if (a.memoryType && b.memoryType && a.memoryType !== b.memoryType) return true;
   if (a.storageType && b.storageType && a.storageType !== b.storageType) return true;
   if (setsConflict(a.capacitiesGb, b.capacitiesGb)) return true;
