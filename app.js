@@ -338,11 +338,34 @@ function buildGroups(rows, cfg) {
     }
   }
 
+  // Level 3: title_almost_exact — runs for ALL rows regardless of vendor/barcode
+  const titleBlocks = new Map();
+  for (const row of data) {
+    if (!row._title) continue;
+    const block = row._title.slice(0, 18);
+    if (!titleBlocks.has(block)) titleBlocks.set(block, []);
+    titleBlocks.get(block).push(row);
+  }
+  for (const group of titleBlocks.values()) {
+    if (group.length < 2 || group.length > cfg.fuzzyBlockMax) continue;
+    for (let i = 0; i < group.length; i++) {
+      for (let j = i + 1; j < group.length; j++) {
+        const a = group[i];
+        const b = group[j];
+        const titleScore = tokenSetRatio(a._title, b._title);
+        if (titleScore >= 0.95) {
+          const bonus = a._brand && a._brand === b._brand ? 0.03 : 0;
+          addEdge(a._uuid, b._uuid, Math.min(1, titleScore + bonus), "title_almost_exact");
+        }
+      }
+    }
+  }
+
   if (cfg.includeFuzzy) {
-    const fuzzyRows = data.filter((r) => !r._vendor && !r._barcode && r._title);
+    const fuzzyRows = data.filter((r) => r._title);
     const blocks = new Map();
     for (const row of fuzzyRows) {
-      const block = row._title.slice(0, 12);
+      const block = row._title.slice(0, 18);
       if (!blocks.has(block)) blocks.set(block, []);
       blocks.get(block).push(row);
     }
@@ -354,6 +377,7 @@ function buildGroups(rows, cfg) {
           const a = group[i];
           const b = group[j];
           if (!a._title || !b._title) continue;
+          if (hasHardConflict(a._attrs, b._attrs)) continue;
           const titleScore = tokenSetRatio(a._title, b._title);
           if (titleScore < cfg.threshold) continue;
           const bonus = a._brand && a._brand === b._brand ? 0.03 : 0;
